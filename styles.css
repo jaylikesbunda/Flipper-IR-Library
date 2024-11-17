@@ -397,28 +397,81 @@ body {
 .metadata-badges {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     margin: 8px 0;
 }
 
 .badge {
-    background: rgba(255, 87, 34, 0.1);
-    color: var(--accent-color);
-    padding: 4px 12px;
+    padding: 4px 8px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: 500;
+    cursor: help;
+    transition: all 0.2s ease;
 }
 
+/* Device type-specific colors */
 .badge.device-type {
-    background: var(--purple-light);
-    color: var(--purple-accent);
-    font-weight: 600;
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.badge.brand {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.badge.model {
+    background: #e8f5e9;
+    color: #388e3c;
+}
+
+.badge.protocol {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.badge.warning {
+    background: #fff3e0;
+    color: #ed6c02;
+    border: 1px solid #ed6c02;
+}
+
+.badge.size {
+    background: #e8eaf6;
+    color: #3f51b5;
 }
 
 .badge.date {
-    background: rgba(76, 175, 80, 0.1);
-    color: var(--success-color);
+    background: #fce4ec;
+    color: #c2185b;
+}
+
+/* Hover effects */
+.badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Tooltip styles */
+.badge[title] {
+    position: relative;
+}
+
+.badge[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 4px;
 }
 
 .helper-text {

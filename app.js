@@ -282,7 +282,6 @@ class FlipperIRBrowser {
         const card = document.createElement('div');
         card.className = 'ir-card';
         
-        // Add a class if metadata was guessed
         if (metadata.isGuessed) {
             card.classList.add('guessed-metadata');
         }
@@ -291,10 +290,13 @@ class FlipperIRBrowser {
             <div class="ir-info">
                 <h3>${metadata.brand}</h3>
                 <div class="metadata-badges">
-                    <span class="badge device-type">${metadata.device_type}</span>
-                    <span class="badge">${metadata.model}</span>
-                    <span class="badge filename">${file.name}</span>
-                    ${metadata.isGuessed ? '<span class="badge guessed">Guessed Metadata</span>' : ''}
+                    <span class="badge device-type" title="Device Category">${metadata.device_type}</span>
+                    <span class="badge brand" title="Manufacturer">${metadata.brand}</span>
+                    <span class="badge model" title="Model Number">${metadata.model}</span>
+                    ${metadata.protocol ? `<span class="badge protocol" title="IR Protocol">${metadata.protocol}</span>` : ''}
+                    <span class="badge filename" title="File: ${file.path}">${file.name}</span>
+                    ${metadata.isGuessed ? '<span class="badge warning" title="Metadata was automatically detected">Guessed Metadata</span>' : ''}
+                    ${file.size ? `<span class="badge size" title="File Size">${this.formatFileSize(file.size)}</span>` : ''}
                 </div>
                 <p class="file-path">${file.path}</p>
             </div>
@@ -423,10 +425,12 @@ class FlipperIRBrowser {
             <div class="ir-info">
                 <h3>${file.metadata.brand}</h3>
                 <div class="metadata-badges">
-                    <span class="badge device-type">${file.metadata.device_type}</span>
-                    <span class="badge">${file.metadata.model}</span>
-                    <span class="badge filename">${file.name}</span>
-                    <span class="badge date">${new Date(file.uploadedAt).toLocaleDateString()}</span>
+                    <span class="badge device-type" title="Device Category">${file.metadata.device_type}</span>
+                    <span class="badge brand" title="Manufacturer">${file.metadata.brand}</span>
+                    <span class="badge model" title="Model Number">${file.metadata.model}</span>
+                    ${file.metadata.protocol ? `<span class="badge protocol" title="IR Protocol">${file.metadata.protocol}</span>` : ''}
+                    <span class="badge filename" title="File: ${file.name}">${file.name}</span>
+                    <span class="badge date" title="Upload Date">${new Date(file.uploadedAt).toLocaleDateString()}</span>
                 </div>
             </div>
             <div class="button-group">
@@ -640,6 +644,13 @@ class FlipperIRBrowser {
         
         // Save back to file
         await this.flipper.writeFile(path, newContent);
+    }
+
+    // Add helper method for file size formatting
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 }
 
