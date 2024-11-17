@@ -33,6 +33,28 @@ class FlipperIRBrowser {
         this.filterValueEl.addEventListener('input', () => this.loadSharedFiles());
 
         this.scanningIndicator = document.getElementById('scanningIndicator');
+
+        this.welcomeMessage = document.getElementById('welcomeMessage');
+        
+        // Hide welcome message when files are loaded
+        this.hideWelcomeOnContent();
+    }
+
+    hideWelcomeOnContent() {
+        // Hide welcome message when either local or database files are shown
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.children.length > 0 && 
+                    !mutation.target.querySelector('.empty-state')) {
+                    this.welcomeMessage.style.display = 'none';
+                } else if (mutation.target.children.length === 0) {
+                    this.welcomeMessage.style.display = 'block';
+                }
+            });
+        });
+
+        observer.observe(this.irFilesEl, { childList: true });
+        observer.observe(this.databaseFilesEl, { childList: true });
     }
 
     setLoading(isLoading, status = 'Loading...') {

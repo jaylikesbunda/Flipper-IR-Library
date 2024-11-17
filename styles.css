@@ -384,3 +384,138 @@ body {
     background: rgba(76, 175, 80, 0.1);
     color: var(--success-color);
 }
+
+.helper-text {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.connection-help {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.connection-help .helper-text {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.welcome-message {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: var(--shelf-shadow);
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.welcome-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.welcome-message h2 {
+    color: var(--accent-color);
+    font-size: 28px;
+    margin-bottom: 16px;
+}
+
+.welcome-message p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.getting-started {
+    margin: 32px 0;
+    padding: 24px;
+    background: rgba(255, 87, 34, 0.05);
+    border-radius: 12px;
+}
+
+.getting-started h3 {
+    color: var(--text-primary);
+    margin-bottom: 24px;
+}
+
+.steps {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 300px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.step-number {
+    background: var(--accent-color);
+    color: white;
+    min-width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.step p {
+    margin: 0;
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    margin-top: 32px;
+}
+
+.feature {
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    transition: transform 0.2s;
+    text-align: left;
+}
+
+.feature-icon {
+    font-size: 24px;
+    margin-bottom: 16px;
+    display: inline-block;
+    padding: 12px;
+    background: rgba(255, 87, 34, 0.1);
+    border-radius: 8px;
+}
+
+.feature h4 {
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+.feature p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+}
