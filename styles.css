@@ -519,3 +519,27 @@ body {
     font-size: 14px;
     line-height: 1.5;
 }
+
+.guessed-metadata {
+    border: 1px dashed var(--accent-color);
+}
+
+.badge.guessed {
+    background: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+}
+
+.confirm-metadata-btn {
+    background: var(--card-bg);
+    color: #ffc107;
+    border: 1px solid #ffc107;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-metadata-btn:hover {
+    background: #ffc107;
+    color: var(--card-bg);
+}

@@ -7,6 +7,7 @@ class FlipperSerial {
         this.responseBuffer = '';
         this.readLoopPromise = null;
         this.DEBUG = true;
+        this.isReading = true;
     }
 
     debug(...args) {
@@ -138,11 +139,12 @@ class FlipperSerial {
     }
 
 
-    async readLoop() { // Changed from _readLoop to readLoop
-        while (true) {
+    async readLoop() {
+        this.debug('Starting read loop...');
+        while (this.isReading) {
             try {
                 const { value, done } = await this.reader.read();
-                if (done) {
+                if (done || !this.isReading) {
                     this.debug('Read loop complete');
                     break;
                 }
@@ -152,13 +154,15 @@ class FlipperSerial {
                 this.responseBuffer += decoded;
                 
             } catch (error) {
-                if (error.name === 'NetworkError') {
+                if (error.name === 'NetworkError' || !this.isReading) {
+                    this.debug('Read loop breaking due to network error or stop signal');
                     break;
                 }
                 this.debug('Read error:', error);
                 throw error;
             }
         }
+        this.debug('Read loop exited');
     }
 
     async readUntil(marker, timeout = 5000) {
@@ -454,25 +458,42 @@ class FlipperSerial {
     
 
     async disconnect() {
+        this.debug('Force disconnecting...');
+        
+        // Immediately null everything first to prevent any new operations
+        const oldPort = this.port;
+        const oldReader = this.reader;
+        const oldWriter = this.writer;
+        
+        // Clear all references immediately
+        this.port = null;
+        this.reader = null;
+        this.writer = null;
+        this.isConnected = false;
+        this.isReading = false;
+        this.responseBuffer = '';
+        this.readLoopPromise = null;
+        
+        // Now clean up the old references without waiting
         try {
-            if (this.writer) {
-                await this.writer.close();
-                this.writer = null;
+            if (oldReader) {
+                oldReader.cancel().catch(() => {});
+                oldReader.releaseLock();
             }
-            if (this.reader) {
-                await this.reader.cancel();
-                this.reader = null;
+            if (oldWriter) {
+                oldWriter.close().catch(() => {});
+                oldWriter.releaseLock();
             }
-            if (this.port) {
-                await this.port.close();
-                this.port = null;
+            if (oldPort) {
+                oldPort.close().catch(() => {});
             }
-            this.isConnected = false;
-            this.debug('Disconnected');
         } catch (error) {
-            this.debug('Disconnection error:', error);
-            throw error;
+            // Ignore any errors during cleanup
+            this.debug('Cleanup errors ignored:', error);
         }
+        
+        this.debug('Force disconnect complete');
+        return true;
     }
 
     // Add a new method for reading files
