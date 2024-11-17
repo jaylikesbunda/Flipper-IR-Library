@@ -26,11 +26,6 @@ class FlipperIRBrowser {
         
         // Hide welcome message when files are loaded
         this.hideWelcomeOnContent();
-
-        // Move welcome message into home content
-        if (this.homeContent && this.welcomeMessage) {
-            this.homeContent.appendChild(this.welcomeMessage);
-        }
     }
 
     initializeUIElements() {
@@ -89,20 +84,6 @@ class FlipperIRBrowser {
         this.filterValueEl.addEventListener('input', () => this.loadSharedFiles());
     }
 
-    hideWelcomeOnContent() {
-        // Only hide welcome message when switching tabs
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.target.children.length > 0 && 
-                    !mutation.target.querySelector('.empty-state')) {
-                    this.welcomeMessage.style.display = 'none';
-                }
-            });
-        });
-
-        observer.observe(this.irFilesEl, { childList: true });
-        observer.observe(this.databaseFilesEl, { childList: true });
-    }
 
     setLoading(isLoading, status = 'Loading...') {
         this.loading = isLoading;
@@ -202,18 +183,37 @@ class FlipperIRBrowser {
     async loadIRFiles() {
         try {
             console.log('Starting to load IR files...');
-            await this.scanDirectory('/ext/infrared');
+            const emptyStateEl = document.getElementById('emptyLocalState');
+            const loadingStateEl = document.getElementById('localLoadingState');
             
-            if (this.irFilesEl.children.length === 0) {
-                this.showAlert('No IR files with valid metadata found in /ext/infrared/', 'error');
+            this.irFilesEl.innerHTML = '';
+            
+            // Only show loading and attempt to scan if connected
+            if (this.flipper && this.flipper.isConnected) {
+                loadingStateEl.style.display = 'block';
+                emptyStateEl.style.display = 'none';
+                
+                await this.scanDirectory('/ext/infrared');
+                
+                if (!this.irFilesEl.children.length) {
+                    emptyStateEl.style.display = 'block';
+                    this.showAlert('No IR files with valid metadata found in /ext/infrared/', 'error');
+                } else {
+                    emptyStateEl.style.display = 'none';
+                    this.showAlert(`Found ${this.irFilesEl.children.length} IR files with metadata`, 'success');
+                }
             } else {
-                this.showAlert(`Found ${this.irFilesEl.children.length} IR files with metadata`, 'success');
+                // Not connected, just show empty state
+                loadingStateEl.style.display = 'none';
+                emptyStateEl.style.display = 'block';
             }
         } catch (err) {
             console.error('Failed to load IR files:', err);
-            console.error('Full error:', err);
-            this.showAlert('Failed to load IR files: ' + err.message);
-            this.statusEl.textContent = '';
+            loadingStateEl.style.display = 'none';
+            emptyStateEl.style.display = 'block';
+            if (this.flipper && this.flipper.isConnected) {
+                this.showAlert('Failed to load IR files: ' + err.message);
+            }
         }
     }
 
@@ -381,6 +381,10 @@ class FlipperIRBrowser {
 
     async loadSharedFiles() {
         try {
+            document.getElementById('databaseLoadingState').style.display = 'block';
+            document.getElementById('emptyDatabaseState').style.display = 'none';
+            this.databaseFilesEl.innerHTML = '';
+            
             const pageSize = 20;
             const filterType = this.filterTypeEl.value;
             const filterValue = this.filterValueEl.value.toLowerCase();
@@ -398,8 +402,8 @@ class FlipperIRBrowser {
             const snapshot = await query.once('value');
             const files = snapshot.val();
             
-            if (!files) {
-                this.databaseFilesEl.innerHTML = '<p>No shared files found</p>';
+            if (!files || Object.keys(files).length === 0) {
+                document.getElementById('emptyDatabaseState').style.display = 'block';
                 return;
             }
 
@@ -414,7 +418,11 @@ class FlipperIRBrowser {
             this.databaseFilesEl.appendChild(fragment);
         } catch (err) {
             console.error('Failed to load shared files:', err);
+            document.getElementById('databaseLoadingState').style.display = 'none';
+            document.getElementById('emptyDatabaseState').style.display = 'block';
             this.showAlert('Failed to load shared files: ' + err.message);
+        } finally {
+            document.getElementById('databaseLoadingState').style.display = 'none';
         }
     }
 
@@ -454,29 +462,32 @@ class FlipperIRBrowser {
     }
 
     switchTab(tab) {
-        // Remove active class from all tabs
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        
-        // Update tab content visibility
+        // First hide all content
         document.querySelectorAll('.tab-content').forEach(content => {
-            if (content.id === `${tab}Content`) {
-                content.classList.add('active');
-            } else {
-                content.classList.remove('active');
-            }
+            content.style.display = 'none';
         });
         
-        // Update active tab
-        document.getElementById(`${tab}Tab`).classList.add('active');
-        
-        // Show welcome message only on home tab
-        if (tab === 'home') {
-            this.welcomeMessage.style.display = 'block';
-        }
-        
-        // Load database content if needed
-        if (tab === 'database' && this.databaseFilesEl.children.length === 0) {
-            this.loadSharedFiles();
+        // Remove active class from all tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Show selected content and activate tab
+        switch(tab) {
+            case 'local':
+                this.localTab.classList.add('active');
+                this.localContent.style.display = 'block';
+                this.loadIRFiles();
+                break;
+            case 'database':
+                this.databaseTab.classList.add('active');
+                this.databaseContent.style.display = 'block';
+                this.loadSharedFiles();
+                break;
+            case 'home':
+                this.homeTab.classList.add('active');
+                this.homeContent.style.display = 'block';
+                break;
         }
     }
 

@@ -21,44 +21,6 @@
             <div id="status"></div>
         </div>
 
-        <div id="welcomeMessage" class="welcome-message">
-            <div class="welcome-content">
-                <h2>IR Signal Library</h2>
-                <p>Share and discover infrared signals for the Flipper Zero community</p>
-                
-                <div class="getting-started">
-                    <h3>How It Works</h3>
-                    <div class="steps">
-                        <div class="step">
-                            <span class="step-number">1</span>
-                            <p>Connect your Flipper Zero via USB to browse your local IR files</p>
-                        </div>
-                        <div class="step">
-                            <span class="step-number">2</span>
-                            <p>Share your IR signals with the community using the "Share to Database" button</p>
-                        </div>
-                        <div class="step">
-                            <span class="step-number">3</span>
-                            <p>Browse and download signals shared by other Flipper Zero users</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="features">
-                    <div class="feature">
-                        <span class="feature-icon">🌐</span>
-                        <h4>Community Database</h4>
-                        <p>Browse a growing collection of IR signals shared by Flipper Zero users. Filter by brand, device type, or model to find what you need.</p>
-                    </div>
-                    <div class="feature">
-                        <span class="feature-icon">⬆️</span>
-                        <h4>Easy Sharing</h4>
-                        <p>Share your IR files with metadata (brand, model, device type) to help others find and use your signals.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div id="alert" class="alert"></div>
         
         <!-- Loading overlay -->
@@ -76,10 +38,24 @@
         </div>
 
         <div id="localContent" class="tab-content">
+            <div id="localLoadingState" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <h3>Loading Local Files...</h3>
+                <p>Scanning your Flipper Zero for IR files</p>
+            </div>
             <div id="irFiles" class="ir-files"></div>
             <div id="emptyLocalState" class="empty-state" style="display: none;">
-                <h3>No IR Files Found</h3>
-                <p>Connect your Flipper Zero and make sure you have IR files in the /ext/infrared directory.</p>
+                <div class="empty-icon">📂</div>
+                <h3>Your IR Library is Empty</h3>
+                <p>No IR files found in your Flipper Zero's /ext/infrared directory.</p>
+                <div class="empty-steps">
+                    <p>To get started:</p>
+                    <ol>
+                        <li>Connect your Flipper Zero via USB</li>
+                        <li>Record some IR signals using your Flipper</li>
+                        <li>Save them to /ext/infrared with metadata</li>
+                    </ol>
+                </div>
                 <small>Files must contain metadata (brand, model, device type) to be displayed.</small>
             </div>
         </div>
@@ -96,6 +72,11 @@
                     <small class="helper-text">Filter the shared database by brand, device type, or model</small>
                 </div>
             </div>
+            <div id="databaseLoadingState" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <h3>Loading Shared Files...</h3>
+                <p>Fetching IR files from the community database</p>
+            </div>
             <div id="databaseFiles" class="ir-files"></div>
             <div id="emptyDatabaseState" class="empty-state" style="display: none;">
                 <h3>No Shared Files Found</h3>
@@ -105,7 +86,43 @@
         </div>
 
         <div id="homeContent" class="tab-content active">
-            <!-- Your welcome content will go here -->
+            <div id="welcomeMessage" class="welcome-message">
+                <div class="welcome-content">
+                    <h2>IR Signal Library</h2>
+                    <p>Share and discover infrared signals for the Flipper Zero community</p>
+                    
+                    <div class="getting-started">
+                        <h3>How It Works</h3>
+                        <div class="steps">
+                            <div class="step">
+                                <span class="step-number">1</span>
+                                <p>Connect your Flipper Zero via USB to browse your local IR files</p>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">2</span>
+                                <p>Share your IR signals with the community using the "Share to Database" button</p>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">3</span>
+                                <p>Browse and download signals shared by other Flipper Zero users</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="features">
+                        <div class="feature">
+                            <span class="feature-icon">🌐</span>
+                            <h4>Community Database</h4>
+                            <p>Browse a growing collection of IR signals shared by Flipper Zero users. Filter by brand, device type, or model to find what you need.</p>
+                        </div>
+                        <div class="feature">
+                            <span class="feature-icon">⬆️</span>
+                            <h4>Easy Sharing</h4>
+                            <p>Share your IR files with metadata (brand, model, device type) to help others find and use your signals.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
