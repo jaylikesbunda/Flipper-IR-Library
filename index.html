@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipper IR Browser</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12" y2="20"></line>
+                </svg>
+                Flipper IR Browser
+            </h1>
+            <button id="connectBtn" class="connect-btn">Connect Flipper</button>
+            <div id="status"></div>
+        </div>
+
+        <div id="alert" class="alert"></div>
+        <div id="irFiles" class="ir-files"></div>
+        <div class="database-section">
+            <h2>Shared IR Database</h2>
+            <div class="filter-controls">
+                <select id="filterType">
+                    <option value="brand">Brand</option>
+                    <option value="device_type">Device Type</option>
+                    <option value="model">Model</option>
+                </select>
+                <input type="text" id="filterValue" placeholder="Filter value...">
+            </div>
+            <div id="databaseFiles" class="ir-files"></div>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="serial.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
