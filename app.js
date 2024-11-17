@@ -13,23 +13,34 @@ class FlipperIRBrowser {
         this.filterValueEl = document.getElementById('filterValue');
         this.databaseFilesEl = document.getElementById('databaseFiles');
 
+        // Add loading overlay elements
+        this.loadingOverlay = document.getElementById('loadingOverlay');
+        this.loadingStatus = document.getElementById('loadingStatus');
+        
+        // Add tab elements
+        this.localTab = document.getElementById('localTab');
+        this.databaseTab = document.getElementById('databaseTab');
+        this.localContent = document.getElementById('localContent');
+        this.databaseContent = document.getElementById('databaseContent');
+        
+        // Add tab listeners
+        this.localTab.addEventListener('click', () => this.switchTab('local'));
+        this.databaseTab.addEventListener('click', () => this.switchTab('database'));
+        
         // Bind event listeners
         this.connectBtn.addEventListener('click', () => this.connectFlipper());
         this.filterTypeEl.addEventListener('change', () => this.loadSharedFiles());
         this.filterValueEl.addEventListener('input', () => this.loadSharedFiles());
 
-        // Load shared files on startup
-        this.loadSharedFiles();
+        this.scanningIndicator = document.getElementById('scanningIndicator');
     }
 
-    setLoading(isLoading) {
+    setLoading(isLoading, status = 'Loading...') {
         this.loading = isLoading;
-        this.connectBtn.disabled = isLoading || this.connected;
-        if (isLoading) {
-            document.body.classList.add('loading');
-        } else {
-            document.body.classList.remove('loading');
-        }
+        this.connectBtn.disabled = isLoading;
+        this.loadingOverlay.classList.toggle('active', isLoading);
+        this.loadingStatus.textContent = status;
+        this.scanningIndicator.style.display = isLoading ? 'flex' : 'none';
     }
 
     showAlert(message, type = 'error') {
@@ -44,11 +55,25 @@ class FlipperIRBrowser {
     }
 
     async connectFlipper() {
+        if (this.connected) {
+            try {
+                await this.flipper.disconnect();
+                this.connected = false;
+                this.connectBtn.textContent = 'Connect Flipper';
+                this.connectBtn.classList.remove('connected');
+                this.showAlert('Disconnected from Flipper', 'success');
+            } catch (err) {
+                this.showAlert('Failed to disconnect: ' + err.message);
+            }
+            return;
+        }
+
         this.setLoading(true);
         try {
             await this.flipper.connect();
             this.connected = true;
-            this.connectBtn.textContent = 'Connected';
+            this.connectBtn.textContent = 'Disconnect';
+            this.connectBtn.classList.add('connected');
             this.showAlert('Successfully connected to Flipper!', 'success');
             this.loadIRFiles();
         } catch (err) {
@@ -61,46 +86,8 @@ class FlipperIRBrowser {
     async loadIRFiles() {
         try {
             console.log('Starting to load IR files...');
-            const files = await this.flipper.listDirectory('/ext/infrared');
-            console.log('Files found:', files);
-            this.irFilesEl.innerHTML = '';
+            await this.scanDirectory('/ext/infrared');
             
-            this.statusEl.textContent = 'Scanning IR files...';
-            
-            for (const file of files) {
-                if (!file.isDirectory && file.name.endsWith('.ir') && !file.name.startsWith('.')) {
-                    console.log(`Attempting to read file: ${file.name} at path: ${file.path}`);
-                    try {
-                        await this.flipper.write(`storage read ${file.path}\r\n`);
-                        console.log(`Sent read command for ${file.name}`);
-                        
-                        await this.flipper.readUntil(`storage read ${file.path}`);
-                        console.log(`Got command echo for ${file.name}`);
-                        
-                        await this.flipper.readUntil('\n');
-                        console.log(`Skipped size line for ${file.name}`);
-                        
-                        const content = await this.flipper.readUntil('>');
-                        console.log(`File content for ${file.name}:`, content);
-                        
-                        this.statusEl.textContent = `Reading ${file.name}...`;
-                        
-                        const metadata = this.parseIRMetadata(content);
-                        if (metadata) {
-                            this.addIRFileCard(file, metadata, content);
-                            console.log('Found metadata:', metadata);
-                        } else {
-                            console.log('No metadata found in:', file.name);
-                        }
-                    } catch (fileErr) {
-                        console.error(`Error reading ${file.name}:`, fileErr);
-                        console.error('Full error:', fileErr);
-                    }
-                }
-            }
-            
-            this.statusEl.textContent = '';
-
             if (this.irFilesEl.children.length === 0) {
                 this.showAlert('No IR files with valid metadata found in /ext/infrared/', 'error');
             } else {
@@ -113,7 +100,75 @@ class FlipperIRBrowser {
             this.statusEl.textContent = '';
         }
     }
-    
+
+    async scanDirectory(path) {
+        const files = await this.flipper.listDirectory(path);
+        const irFiles = files.filter(f => f.name.endsWith('.ir') && !f.name.startsWith('.'));
+        const directories = files.filter(f => f.isDirectory);
+        
+        // Skip single-file directory recursion
+        if (directories.length === 1 && irFiles.length === 0) {
+            const subFiles = await this.flipper.listDirectory(directories[0].path);
+            const subIRFiles = subFiles.filter(f => f.name.endsWith('.ir') && !f.name.startsWith('.'));
+            
+            if (subIRFiles.length === 1) {
+                // Process single file directly
+                this.setLoading(true, `Reading file from ${directories[0].path}`);
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    const file = subIRFiles[0];
+                    await this.flipper.write(`storage read ${file.path}\r\n`, 50);
+                    await this.flipper.readUntil(`storage read ${file.path}`, 2500);
+                    await this.flipper.readUntil('\n', 1500);
+                    
+                    const content = await this.flipper.readUntil('>', 4000);
+                    const metadata = this.parseIRMetadata(content);
+                    if (metadata) {
+                        this.addIRFileCard(file, metadata, content);
+                    }
+                } catch (fileErr) {
+                    console.error(`Error reading single file:`, fileErr);
+                }
+                return;
+            }
+        }
+        
+        // Regular directory processing
+        let processedFiles = 0;
+        const totalFiles = irFiles.length;
+        
+        // Process files
+        for (const file of irFiles) {
+            processedFiles++;
+            this.setLoading(true, `Reading file ${processedFiles}/${totalFiles} from ${path}`);
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await this.flipper.write(`storage read ${file.path}\r\n`, 50);
+                await this.flipper.readUntil(`storage read ${file.path}`, 2500);
+                await this.flipper.readUntil('\n', 1500);
+                
+                const content = await this.flipper.readUntil('>', 4000);
+                const metadata = this.parseIRMetadata(content);
+                if (metadata) {
+                    this.addIRFileCard(file, metadata, content);
+                }
+            } catch (fileErr) {
+                console.error(`Error reading ${file.name}:`, fileErr);
+            }
+        }
+        
+        // Process directories
+        for (const dir of directories) {
+            await this.scanDirectory(dir.path);
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        if (path === '/ext/infrared') {
+            this.setLoading(false);
+        }
+    }
+
     parseIRMetadata(content) {
         const metadata = {};
         // Only look at lines at start of file that begin with #
@@ -147,8 +202,11 @@ class FlipperIRBrowser {
         card.innerHTML = `
             <div class="ir-info">
                 <h3>${metadata.brand}</h3>
-                <p>${metadata.device_type} - ${metadata.model}</p>
-                <span class="filename">${file.name}</span>
+                <div class="metadata-badges">
+                    <span class="badge device-type">${metadata.device_type}</span>
+                    <span class="badge">${metadata.model}</span>
+                    <span class="badge filename">${file.name}</span>
+                </div>
             </div>
             <div class="button-group">
                 <button class="share-btn">Share to Database</button>
@@ -253,9 +311,12 @@ class FlipperIRBrowser {
         card.innerHTML = `
             <div class="ir-info">
                 <h3>${file.metadata.brand}</h3>
-                <p>${file.metadata.device_type} - ${file.metadata.model}</p>
-                <span class="filename">${file.name}</span>
-                <span class="upload-date">${new Date(file.uploadedAt).toLocaleDateString()}</span>
+                <div class="metadata-badges">
+                    <span class="badge device-type">${file.metadata.device_type}</span>
+                    <span class="badge">${file.metadata.model}</span>
+                    <span class="badge filename">${file.name}</span>
+                    <span class="badge date">${new Date(file.uploadedAt).toLocaleDateString()}</span>
+                </div>
             </div>
             <div class="button-group">
                 <button class="download-btn">Download</button>
@@ -277,6 +338,28 @@ class FlipperIRBrowser {
         });
         
         this.databaseFilesEl.appendChild(card);
+    }
+
+    switchTab(tab) {
+        // Remove active class from all tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        
+        // Update tab content visibility
+        document.querySelectorAll('.tab-content').forEach(content => {
+            if (content.id === `${tab}Content`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+        
+        // Update active tab
+        document.getElementById(`${tab}Tab`).classList.add('active');
+        
+        // Load database content if needed
+        if (tab === 'database' && this.databaseFilesEl.children.length === 0) {
+            this.loadSharedFiles();
+        }
     }
 }
 

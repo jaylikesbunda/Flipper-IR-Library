@@ -3,29 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flipper IR Browser</title>
+    <title>Flipper IR Library</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                    <line x1="12" y1="20" x2="12" y2="20"></line>
-                </svg>
-                Flipper IR Browser
-            </h1>
+            <h1>Flipper IR Library</h1>
+            <div class="scanning-indicator" id="scanningIndicator" style="display: none">
+                <div class="dot"></div>
+                <span>Scanning files...</span>
+            </div>
             <button id="connectBtn" class="connect-btn">Connect Flipper</button>
             <div id="status"></div>
         </div>
 
         <div id="alert" class="alert"></div>
-        <div id="irFiles" class="ir-files"></div>
-        <div class="database-section">
-            <h2>Shared IR Database</h2>
+        
+        <!-- Loading overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-bar"></div>
+                <div id="loadingStatus" class="loading-status"></div>
+            </div>
+        </div>
+
+        <div class="content-tabs">
+            <button id="localTab" class="tab-btn active">Local Files</button>
+            <button id="databaseTab" class="tab-btn">Shared Database</button>
+        </div>
+
+        <div id="localContent" class="tab-content active">
+            <div id="irFiles" class="ir-files"></div>
+        </div>
+
+        <div id="databaseContent" class="tab-content">
             <div class="filter-controls">
                 <select id="filterType">
                     <option value="brand">Brand</option>

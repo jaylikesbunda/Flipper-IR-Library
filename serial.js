@@ -284,11 +284,11 @@ class FlipperSerial {
         }
     }
     
-    async write(data) {
+    async write(data, delay = 50) {
         const encoder = new TextEncoder();
         await this.writer.write(encoder.encode(data));
-        // Small delay after each write
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Configurable delay after each write
+        await new Promise(resolve => setTimeout(resolve, delay));
     }
 
     async writeCommand(cmd) {
@@ -527,6 +527,36 @@ class FlipperSerial {
             this.debug('Read file failed:', error);
             throw error;
         }
+    }
+
+    async readUntilPrompt() {
+        let content = '';
+        let buffer = '';
+        
+        while (true) {
+            const chunk = await this.reader.read();
+            if (chunk.done) break;
+            
+            buffer += new TextDecoder().decode(chunk.value);
+            
+            // Look for command echo and skip it
+            const echoEnd = buffer.indexOf('\n');
+            if (echoEnd !== -1) {
+                buffer = buffer.substring(echoEnd + 1);
+            }
+            
+            // Check for prompt
+            const promptIndex = buffer.indexOf('>');
+            if (promptIndex !== -1) {
+                content += buffer.substring(0, promptIndex);
+                break;
+            }
+            
+            content += buffer;
+            buffer = '';
+        }
+        
+        return content.trim();
     }
 }
 
