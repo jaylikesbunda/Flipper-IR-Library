@@ -125,7 +125,6 @@ class FlipperIRBrowser {
             if (this.connected) {
                 console.log('Entering disconnect flow');
                 this.setLoading(true);
-                console.log('Loading state set'); 
                 
                 try {
                     if (!this.flipper) {
@@ -133,13 +132,8 @@ class FlipperIRBrowser {
                         throw new Error('Flipper instance not initialized');
                     }
                     
-                    console.log('Calling disconnect on flipper instance');
                     await this.flipper.disconnect();
-                    console.log('Disconnect completed');
-                    
                     this.connected = false;
-                    console.log('Updated connected state');
-                    
                     this.connectBtn.textContent = 'Connect Flipper';
                     this.connectBtn.classList.remove('connected');
                     this.irFilesEl.innerHTML = '';
@@ -151,12 +145,9 @@ class FlipperIRBrowser {
                     this.setLoading(false);
                 }
                 return;
-            } else {
-                console.log('Not in connected state, attempting to connect');
             }
 
             this.setLoading(true);
-            console.log('Attempting to connect to Flipper...'); // Debug log
 
             if (!this.flipper) {
                 console.error('Flipper Serial instance not initialized');
@@ -164,7 +155,6 @@ class FlipperIRBrowser {
             }
 
             await this.flipper.connect();
-            console.log('Connection successful'); // Debug log
             
             this.connected = true;
             this.flipper.isConnected = true;
@@ -173,7 +163,7 @@ class FlipperIRBrowser {
             this.showAlert('Successfully connected to Flipper!', 'success');
             await this.loadIRFiles();
         } catch (err) {
-            console.error('Connection error:', err); // Debug log
+            console.error('Connection error:', err);
             this.showAlert(`Failed to connect to Flipper: ${err.message}`);
         } finally {
             this.setLoading(false);
@@ -477,7 +467,14 @@ class FlipperIRBrowser {
             case 'local':
                 this.localTab.classList.add('active');
                 this.localContent.style.display = 'block';
-                this.loadIRFiles();
+                const emptyStateEl = document.getElementById('emptyLocalState');
+                
+                // Only show empty state if we're not connected OR we have no files
+                if (!this.flipper?.isConnected) {
+                    emptyStateEl.style.display = 'block';
+                } else if (!this.irFilesEl.children.length) {
+                    this.loadIRFiles();
+                }
                 break;
             case 'database':
                 this.databaseTab.classList.add('active');
