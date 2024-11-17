@@ -128,28 +128,23 @@ class FlipperIRBrowser {
         const irFiles = files.filter(f => f.name.endsWith('.ir') && !f.name.startsWith('.'));
         const directories = files.filter(f => f.isDirectory);
         
-        // Skip single-file directory recursion
+        // Optimize single-file directory handling
         if (directories.length === 1 && irFiles.length === 0) {
             const subFiles = await this.flipper.listDirectory(directories[0].path);
             const subIRFiles = subFiles.filter(f => f.name.endsWith('.ir') && !f.name.startsWith('.'));
             
             if (subIRFiles.length === 1) {
-                // Process single file directly
-                this.setLoading(true, `Reading file from ${directories[0].path}`);
+                const file = subIRFiles[0];
+                this.setLoading(true, `Reading ${file.name}`);
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    const file = subIRFiles[0];
-                    await this.flipper.write(`storage read ${file.path}\r\n`, 50);
-                    await this.flipper.readUntil(`storage read ${file.path}`, 2500);
-                    await this.flipper.readUntil('\n', 1500);
-                    
-                    const content = await this.flipper.readUntil('>', 4000);
+                    // Single read operation with increased timeout
+                    const content = await this.flipper.readFile(file.path);
                     const metadata = this.parseIRMetadata(content);
                     if (metadata) {
                         this.addIRFileCard(file, metadata, content);
                     }
                 } catch (fileErr) {
-                    console.error(`Error reading single file:`, fileErr);
+                    console.error(`Error reading ${file.name}:`, fileErr);
                 }
                 return;
             }
@@ -159,18 +154,13 @@ class FlipperIRBrowser {
         let processedFiles = 0;
         const totalFiles = irFiles.length;
         
-        // Process files
-        for (const file of irFiles) {
+        // Process files in parallel with a limit of 3 concurrent operations
+        const processFile = async (file) => {
             processedFiles++;
             this.setLoading(true, `Reading file ${processedFiles}/${totalFiles} from ${path}`);
             
             try {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                await this.flipper.write(`storage read ${file.path}\r\n`, 50);
-                await this.flipper.readUntil(`storage read ${file.path}`, 2500);
-                await this.flipper.readUntil('\n', 1500);
-                
-                const content = await this.flipper.readUntil('>', 4000);
+                const content = await this.flipper.readFile(file.path);
                 const metadata = this.parseIRMetadata(content);
                 if (metadata) {
                     this.addIRFileCard(file, metadata, content);
@@ -178,12 +168,17 @@ class FlipperIRBrowser {
             } catch (fileErr) {
                 console.error(`Error reading ${file.name}:`, fileErr);
             }
+        };
+
+        // Process files in chunks of 3
+        for (let i = 0; i < irFiles.length; i += 3) {
+            const chunk = irFiles.slice(i, i + 3);
+            await Promise.all(chunk.map(processFile));
         }
         
-        // Process directories
+        // Process directories sequentially
         for (const dir of directories) {
             await this.scanDirectory(dir.path);
-            await new Promise(resolve => setTimeout(resolve, 300));
         }
         
         if (path === '/ext/infrared') {
@@ -192,30 +187,24 @@ class FlipperIRBrowser {
     }
 
     parseIRMetadata(content) {
+        const required = ['brand', 'device_type', 'model'];
         const metadata = {};
-        // Only look at lines at start of file that begin with #
         const lines = content.split('\n');
         
-        for (let i = 0; i < lines.length; i++) {
+        for (let i = 0; i < lines.length && required.length > 0; i++) {
             const line = lines[i].trim();
-            if (!line.startsWith('#')) {
-                continue;
-            }
+            if (!line.startsWith('#')) continue;
             
             const [key, ...valueParts] = line.substring(2).split(':');
-            if (key && valueParts.length > 0) {
-                const value = valueParts.join(':').trim(); // Rejoin in case value contained colons
-                metadata[key.toLowerCase().replace(/ /g, '_')] = value;
+            const cleanKey = key.toLowerCase().replace(/ /g, '_');
+            
+            if (required.includes(cleanKey)) {
+                metadata[cleanKey] = valueParts.join(':').trim();
+                required.splice(required.indexOf(cleanKey), 1);
             }
         }
         
-        // Only return if we have required metadata fields
-        if (metadata.brand && 
-            metadata.device_type && 
-            metadata.model) {
-            return metadata;
-        }
-        return null;
+        return required.length === 0 ? metadata : null;
     }
 
     addIRFileCard(file, metadata, content) {
@@ -285,8 +274,21 @@ class FlipperIRBrowser {
 
     async loadSharedFiles() {
         try {
-            const irRef = firebase.database().ref('ir_files');
-            const snapshot = await irRef.once('value');
+            const pageSize = 20;
+            const filterType = this.filterTypeEl.value;
+            const filterValue = this.filterValueEl.value.toLowerCase();
+            
+            // Use Firebase query operators for server-side filtering
+            let query = firebase.database().ref('ir_files')
+                .orderByChild(`metadata/${filterType}`)
+                .limitToFirst(pageSize);
+                
+            if (filterValue) {
+                query = query.startAt(filterValue)
+                            .endAt(filterValue + '\uf8ff');
+            }
+            
+            const snapshot = await query.once('value');
             const files = snapshot.val();
             
             if (!files) {
@@ -294,33 +296,15 @@ class FlipperIRBrowser {
                 return;
             }
 
-            // Convert to array and add IDs
-            const filesArray = Object.entries(files).map(([id, file]) => ({
-                id,
-                ...file
-            }));
-
-            // Apply filters
-            const filterType = this.filterTypeEl.value;
-            const filterValue = this.filterValueEl.value.toLowerCase();
+            // Batch DOM updates
+            const fragment = document.createDocumentFragment();
+            Object.entries(files).forEach(([id, file]) => {
+                const card = this.createDatabaseFileCard({ id, ...file });
+                fragment.appendChild(card);
+            });
             
-            const filteredFiles = filesArray.filter(file => {
-                if (!filterValue) return true;
-                return file.metadata[filterType]?.toLowerCase().includes(filterValue);
-            });
-
-            // Sort by metadata fields
-            filteredFiles.sort((a, b) => {
-                const aValue = a.metadata[filterType]?.toLowerCase() || '';
-                const bValue = b.metadata[filterType]?.toLowerCase() || '';
-                return aValue.localeCompare(bValue);
-            });
-
-            // Display files
             this.databaseFilesEl.innerHTML = '';
-            filteredFiles.forEach(file => {
-                this.addDatabaseFileCard(file);
-            });
+            this.databaseFilesEl.appendChild(fragment);
         } catch (err) {
             console.error('Failed to load shared files:', err);
             this.showAlert('Failed to load shared files: ' + err.message);

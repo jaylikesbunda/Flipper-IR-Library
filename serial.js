@@ -162,52 +162,27 @@ class FlipperSerial {
     }
 
     async readUntil(marker, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const startTime = Date.now();
-            let timeoutId = null;
-            let intervalId = null;
-            
-            const cleanup = () => {
-                if (timeoutId) clearTimeout(timeoutId);
-                if (intervalId) clearInterval(intervalId);
-            };
-
-            const checkBuffer = () => {
-                // Log current buffer state
-                this.debug('Current buffer:', this.responseBuffer);
-                
-                const index = this.responseBuffer.indexOf(marker);
-                if (index !== -1) {
-                    cleanup();
-                    const response = this.responseBuffer.substring(0, index);
-                    this.responseBuffer = this.responseBuffer.substring(index + marker.length);
-                    this.debug('Found marker:', marker);
-                    this.debug('Response:', response);
-                    resolve(response.trim());
-                    return true;
-                }
-                
-                // Check if we should timeout
-                if (Date.now() - startTime >= timeout) {
-                    cleanup();
-                    this.debug('Timeout waiting for:', marker);
-                    this.debug('Buffer contents:', this.responseBuffer);
-                    reject(new Error('Read timeout'));
-                    return true;
-                }
-                return false;
-            };
-
-            // Check immediately
-            if (!checkBuffer()) {
-                intervalId = setInterval(checkBuffer, 50);
-                timeoutId = setTimeout(() => {
-                    cleanup();
-                    this.debug('Final timeout reached');
-                    reject(new Error('Read timeout'));
-                }, timeout + 100);
+        const startTime = Date.now();
+        
+        while (true) {
+            // Check if marker exists in current buffer
+            const index = this.responseBuffer.indexOf(marker);
+            if (index !== -1) {
+                const response = this.responseBuffer.substring(0, index);
+                this.responseBuffer = this.responseBuffer.substring(index + marker.length);
+                return response.trim();
             }
-        });
+            
+            // Check timeout
+            if (Date.now() - startTime > timeout) {
+                this.debug('Timeout waiting for:', marker);
+                this.debug('Buffer contents:', this.responseBuffer);
+                throw new Error('Read timeout');
+            }
+            
+            // Wait a tiny bit before next check to avoid CPU spinning
+            await new Promise(resolve => setTimeout(resolve, 1));
+        }
     }
 
     async writeFile(path, content) {
