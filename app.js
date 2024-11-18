@@ -24,8 +24,48 @@ class FlipperIRBrowser {
         // Add event listeners
         this.initializeEventListeners();
         
-        // Hide welcome message when files are loaded
-        this.hideWelcomeOnContent();
+        // Initialize view state with defaults
+        this.currentView = 'grid';
+        this.currentSection = 'device_type';
+        this.groupedFiles = null;
+        this.selectedCategories = new Set();
+        
+        // Add view toggle handlers with improved error handling
+        document.querySelectorAll('.view-toggle button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.currentView = btn.dataset.view;
+                if (this.groupedFiles) {
+                    this.refreshView();
+                }
+            });
+        });
+
+        // Set up section tabs with improved state management
+        document.querySelectorAll('.section-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this.currentSection = tab.dataset.section;
+                if (this.groupedFiles) {
+                    this.loadSection(this.currentSection);
+                }
+            });
+        });
+
+        // Add references to UI elements
+        this.searchInput = document.getElementById('searchInput');
+        this.activeGroupSelect = document.getElementById('activeGroup');
+        this.categoryChipsEl = document.getElementById('categoryChips');
+
+        // Initialize search and filter functionality
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', () => this.filterFiles());
+        }
+        if (this.activeGroupSelect) {
+            this.activeGroupSelect.addEventListener('change', () => this.filterFiles());
+        }
     }
 
     initializeUIElements() {
@@ -34,8 +74,6 @@ class FlipperIRBrowser {
         this.alertEl = document.getElementById('alert');
         this.statusEl = document.getElementById('status');
         this.irFilesEl = document.getElementById('irFiles');
-        this.filterTypeEl = document.getElementById('filterType');
-        this.filterValueEl = document.getElementById('filterValue');
         this.databaseFilesEl = document.getElementById('databaseFiles');
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.loadingStatus = document.getElementById('loadingStatus');
@@ -50,10 +88,10 @@ class FlipperIRBrowser {
 
         // Check if any required elements are missing
         const requiredElements = [
-            'connectBtn', 'alertEl', 'statusEl', 'irFilesEl', 'filterTypeEl',
-            'filterValueEl', 'databaseFilesEl', 'loadingOverlay', 'loadingStatus',
-            'localTab', 'databaseTab', 'homeTab', 'localContent', 'databaseContent',
-            'homeContent', 'scanningIndicator', 'welcomeMessage'
+            'connectBtn', 'alertEl', 'statusEl', 'irFilesEl', 'databaseFilesEl', 
+            'loadingOverlay', 'loadingStatus', 'localTab', 'databaseTab', 'homeTab', 
+            'localContent', 'databaseContent', 'homeContent', 'scanningIndicator', 
+            'welcomeMessage'
         ];
 
         requiredElements.forEach(elementId => {
@@ -79,9 +117,6 @@ class FlipperIRBrowser {
             });
             this.connectFlipper();
         });
-        
-        this.filterTypeEl.addEventListener('change', () => this.loadSharedFiles());
-        this.filterValueEl.addEventListener('input', () => this.loadSharedFiles());
     }
 
 
@@ -371,88 +406,161 @@ class FlipperIRBrowser {
         }
     }
 
+    // Simplified view refresh logic
+    refreshView() {
+        if (!this.groupedFiles) {
+            console.warn('No files loaded to display');
+            return;
+        }
+
+        const files = this.currentSection === 'all' 
+            ? this.groupedFiles.all
+            : this.groupedFiles[this.currentSection];
+
+        this.displayFiles(files);
+    }
+
+    // Improved section loading
+    loadSection(section) {
+        if (!this.groupedFiles) return;
+
+        this.currentSection = section;
+        
+        // Update UI state
+        this.updateCategoryChips(this.groupedFiles);
+        this.displayFiles(this.groupedFiles[section]);
+
+        // Reset filters
+        if (this.searchInput) this.searchInput.value = '';
+        if (this.activeGroupSelect) this.activeGroupSelect.value = '';
+    }
+
+    // Improved file display logic
+    displayFiles(files) {
+        if (!this.databaseFilesEl) {
+            console.error('Database files element not found');
+            return;
+        }
+
+        // Clear current display
+        this.databaseFilesEl.innerHTML = '';
+        
+        if (!files || typeof files !== 'object') {
+            console.warn('Invalid files data:', files);
+            return;
+        }
+
+        // Handle different section types
+        if (this.currentSection === 'all') {
+            // Display all files directly
+            Object.values(files).forEach(file => {
+                const card = this.addDatabaseFileCard(file, this.currentView);
+                if (card) {
+                    this.databaseFilesEl.appendChild(card);
+                }
+            });
+        } else {
+            // Display grouped files
+            Object.values(files).forEach(groupFiles => {
+                if (!groupFiles || typeof groupFiles !== 'object') return;
+                
+                Object.values(groupFiles).forEach(file => {
+                    const card = this.addDatabaseFileCard(file, this.currentView);
+                    if (card) {
+                        this.databaseFilesEl.appendChild(card);
+                    }
+                });
+            });
+        }
+    }
+
+    // Improved shared files loading
     async loadSharedFiles() {
         try {
-            document.getElementById('databaseLoadingState').style.display = 'block';
-            document.getElementById('emptyDatabaseState').style.display = 'none';
-            this.databaseFilesEl.innerHTML = '';
+            const databaseLoadingState = document.getElementById('databaseLoadingState');
+            const emptyDatabaseState = document.getElementById('emptyDatabaseState');
             
-            const pageSize = 20;
-            const filterType = this.filterTypeEl.value;
-            const filterValue = this.filterValueEl.value.toLowerCase();
-            
-            // Use Firebase query operators for server-side filtering
-            let query = firebase.database().ref('ir_files')
-                .orderByChild(`metadata/${filterType}`)
-                .limitToFirst(pageSize);
-                
-            if (filterValue) {
-                query = query.startAt(filterValue)
-                            .endAt(filterValue + '\uf8ff');
-            }
-            
-            const snapshot = await query.once('value');
-            const files = snapshot.val();
-            
-            if (!files || Object.keys(files).length === 0) {
-                document.getElementById('emptyDatabaseState').style.display = 'block';
+            if (!databaseLoadingState || !emptyDatabaseState) {
+                console.error('Required elements not found');
                 return;
             }
 
-            // Batch DOM updates
-            const fragment = document.createDocumentFragment();
-            Object.entries(files).forEach(([id, file]) => {
-                const card = this.addDatabaseFileCard({ id, ...file });
-                fragment.appendChild(card);
-            });
-            
+            databaseLoadingState.style.display = 'block';
+            emptyDatabaseState.style.display = 'none';
             this.databaseFilesEl.innerHTML = '';
-            this.databaseFilesEl.appendChild(fragment);
+            
+            // Get all files
+            const snapshot = await firebase.database().ref('ir_files').once('value');
+            const files = snapshot.val() || {};
+            
+            if (!Object.keys(files).length) {
+                emptyDatabaseState.style.display = 'block';
+                return;
+            }
+
+            // Group files and update state
+            this.groupedFiles = this.groupFilesByMetadata(files);
+            
+            // Update UI
+            this.updateSectionCounts(this.groupedFiles);
+            this.loadSection(this.currentSection);
+            
         } catch (err) {
             console.error('Failed to load shared files:', err);
-            document.getElementById('databaseLoadingState').style.display = 'none';
-            document.getElementById('emptyDatabaseState').style.display = 'block';
             this.showAlert('Failed to load shared files: ' + err.message);
         } finally {
             document.getElementById('databaseLoadingState').style.display = 'none';
         }
     }
 
-    addDatabaseFileCard(file) {
-        const card = document.createElement('div');
-        card.className = 'ir-card';
-        card.innerHTML = `
-            <div class="ir-info">
-                <h3>${file.metadata.brand}</h3>
-                <div class="metadata-badges">
-                    <span class="badge device-type" title="Device Category">${file.metadata.device_type}</span>
-                    <span class="badge brand" title="Manufacturer">${file.metadata.brand}</span>
-                    <span class="badge model" title="Model Number">${file.metadata.model}</span>
-                    ${file.metadata.protocol ? `<span class="badge protocol" title="IR Protocol">${file.metadata.protocol}</span>` : ''}
-                    <span class="badge filename" title="File: ${file.name}">${file.name}</span>
-                    <span class="badge date" title="Upload Date">${new Date(file.uploadedAt).toLocaleDateString()}</span>
-                </div>
-            </div>
-            <div class="button-group">
-                <button class="download-btn">Download</button>
-            </div>
-        `;
+    updateSectionCounts(groupedFiles) {
+        document.querySelectorAll('.section-tab').forEach(tab => {
+            const section = tab.dataset.section;
+            const count = Object.keys(groupedFiles[section]).length;
+            tab.querySelector('.count').textContent = count;
+        });
+    }
+
+    setupSectionTabs(groupedFiles) {
+        const tabs = document.querySelectorAll('.section-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this.loadSection(tab.dataset.section, groupedFiles);
+            });
+        });
+    }
+
+    groupFilesByMetadata(files) {
+        const grouped = {
+            device_type: {},
+            brand: {},
+            all: files
+        };
         
-        // Add download functionality
-        const downloadBtn = card.querySelector('.download-btn');
-        downloadBtn.addEventListener('click', () => {
-            const blob = new Blob([file.content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = file.name;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        Object.entries(files).forEach(([id, file]) => {
+            const { metadata } = file;
+            if (!metadata) return;
+            
+            // Group by device type
+            if (metadata.device_type) {
+                if (!grouped.device_type[metadata.device_type]) {
+                    grouped.device_type[metadata.device_type] = {};
+                }
+                grouped.device_type[metadata.device_type][id] = file;
+            }
+            
+            // Group by brand
+            if (metadata.brand) {
+                if (!grouped.brand[metadata.brand]) {
+                    grouped.brand[metadata.brand] = {};
+                }
+                grouped.brand[metadata.brand][id] = file;
+            }
         });
         
-        return card;
+        return grouped;
     }
 
     switchTab(tab) {
@@ -652,7 +760,214 @@ class FlipperIRBrowser {
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
-}
 
+    addDatabaseFileCard(file, viewType = 'grid') {
+        // Add validation check at the start
+        if (!file || !file.metadata) {
+            console.error('Invalid file data:', file);
+            return null;
+        }
+
+        const { metadata } = file;
+        // Ensure all required metadata fields exist with fallbacks
+        const safeMetadata = {
+            brand: metadata.brand || 'Unknown Brand',
+            device_type: metadata.device_type || 'Unknown Type',
+            model: metadata.model || 'Unknown Model',
+            protocol: metadata.protocol || 'Unknown'
+        };
+
+        let element;
+        
+        if (viewType === 'list') {
+            element = document.createElement('div');
+            element.className = 'ir-list-item';
+            
+            element.innerHTML = `
+                <div class="item-info">
+                    <span class="filename">${file.name || 'Unnamed File'}</span>
+                    <div class="metadata-pills">
+                        <span class="pill">${safeMetadata.brand}</span>
+                        <span class="pill">${safeMetadata.device_type}</span>
+                        <span class="pill">${safeMetadata.model}</span>
+                    </div>
+                </div>
+                <div class="item-actions">
+                    <button class="download-btn" title="Download to computer">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M8 12l-4-4h2.5V3h3v5H12L8 12z" fill="currentColor"/>
+                            <path d="M2 13h12v2H2z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <button class="send-to-flipper-btn" title="Send to Flipper">
+                        <svg width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M8 1L5 4h2v8h2V4h2L8 1z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+        } else {
+            element = document.createElement('div');
+            element.className = 'ir-card';
+            
+            element.innerHTML = `
+                <div class="ir-info">
+                    <h3>${safeMetadata.brand}</h3>
+                    <div class="metadata-badges">
+                        <span class="badge device-type" title="Device Category">${safeMetadata.device_type}</span>
+                        <span class="badge model" title="Model">${safeMetadata.model}</span>
+                        <span class="badge protocol" title="Protocol">${safeMetadata.protocol}</span>
+                    </div>
+                    <span class="filename">${file.name || 'Unnamed File'}</span>
+                    <div class="button-group">
+                        <button class="download-btn">
+                            <svg width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M8 12l-4-4h2.5V3h3v5H12L8 12z" fill="currentColor"/>
+                                <path d="M2 13h12v2H2z" fill="currentColor"/>
+                            </svg>
+                            Download
+                        </button>
+                        <button class="send-to-flipper-btn">
+                            <svg width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M8 1L5 4h2v8h2V4h2L8 1z" fill="currentColor"/>
+                            </svg>
+                            Send to Flipper
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Add download handler
+        const downloadBtn = element.querySelector('.download-btn');
+        downloadBtn.addEventListener('click', () => {
+            const blob = new Blob([file.content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        });
+
+        // Add send to flipper handler
+        const sendToFlipperBtn = element.querySelector('.send-to-flipper-btn');
+        sendToFlipperBtn.addEventListener('click', async () => {
+            try {
+                if (!this.flipper.isConnected) {
+                    throw new Error('Please connect your Flipper Zero first');
+                }
+                
+                const savePath = `/ext/infrared/${file.name}`;
+                await this.flipper.writeFile(savePath, file.content);
+                this.showAlert('File sent to Flipper successfully!', 'success');
+                
+                // Refresh local files to show the new file
+                await this.scanDirectory('/ext/infrared');
+            } catch (err) {
+                console.error('Send to Flipper failed:', err);
+                this.showAlert('Failed to send file to Flipper: ' + err.message);
+            }
+        });
+        
+        return element;
+    }
+
+    // Updated method to handle category chips
+    updateCategoryChips(files) {
+        if (!this.categoryChipsEl) return;
+        this.categoryChipsEl.innerHTML = '';
+        
+        // Get categories based on current section
+        const categories = new Set();
+        const categoryCounts = new Map();
+
+        // Extract categories from files
+        Object.values(files[this.currentSection] || {}).forEach(groupFiles => {
+            Object.values(groupFiles).forEach(file => {
+                if (!file.metadata) return;
+                
+                const category = file.metadata[this.currentSection];
+                if (category) {
+                    categories.add(category);
+                    categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+                }
+            });
+        });
+
+        // Update dropdown options
+        if (this.activeGroupSelect) {
+            this.activeGroupSelect.innerHTML = `
+                <option value="">All Categories</option>
+                ${Array.from(categories).sort().map(category => 
+                    `<option value="${category}">${category} (${categoryCounts.get(category)})</option>`
+                ).join('')}
+            `;
+        }
+
+        // Create category chips
+        Array.from(categories).sort().forEach(category => {
+            const chip = document.createElement('div');
+            chip.className = 'category-chip';
+            chip.dataset.category = category;
+            chip.innerHTML = `
+                ${category}
+                <span class="count">${categoryCounts.get(category)}</span>
+            `;
+            
+            chip.addEventListener('click', () => {
+                chip.classList.toggle('active');
+                this.filterFiles();
+            });
+            
+            this.categoryChipsEl.appendChild(chip);
+        });
+    }
+
+    // Improved filter method
+    filterFiles() {
+        if (!this.groupedFiles || !this.databaseFilesEl) return;
+
+        const searchTerm = this.searchInput?.value.toLowerCase() || '';
+        const selectedGroup = this.activeGroupSelect?.value || '';
+        const activeChips = Array.from(this.categoryChipsEl?.querySelectorAll('.category-chip.active') || [])
+            .map(chip => chip.dataset.category);
+
+        // Clear current display
+        this.databaseFilesEl.innerHTML = '';
+
+        const files = this.groupedFiles[this.currentSection];
+        if (!files) return;
+
+        // Filter and display files
+        Object.entries(files).forEach(([group, groupFiles]) => {
+            // Skip if a group is selected and doesn't match
+            if (selectedGroup && group !== selectedGroup) return;
+
+            Object.values(groupFiles).forEach(file => {
+                if (!file.metadata) return;
+
+                // Check if file matches all active filters
+                const matchesSearch = !searchTerm || 
+                    file.name.toLowerCase().includes(searchTerm) ||
+                    file.metadata.brand.toLowerCase().includes(searchTerm) ||
+                    file.metadata.model.toLowerCase().includes(searchTerm) ||
+                    file.metadata.device_type.toLowerCase().includes(searchTerm);
+
+                const matchesCategories = activeChips.length === 0 || 
+                    activeChips.includes(file.metadata[this.currentSection]);
+
+                if (matchesSearch && matchesCategories) {
+                    const card = this.addDatabaseFileCard(file, this.currentView);
+                    if (card) {
+                        this.databaseFilesEl.appendChild(card);
+                    }
+                }
+            });
+        });
+    }
+}
 // Initialize the application
 const irBrowser = new FlipperIRBrowser();

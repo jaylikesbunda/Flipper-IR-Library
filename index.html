@@ -61,23 +61,54 @@
         </div>
 
         <div id="databaseContent" class="tab-content">
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <select id="filterType">
-                        <option value="brand">Brand</option>
-                        <option value="device_type">Device Type</option>
-                        <option value="model">Model</option>
-                    </select>
-                    <input type="text" id="filterValue" placeholder="Filter value...">
-                    <small class="helper-text">Filter the shared database by brand, device type, or model</small>
+            <div class="database-header">
+                <div class="view-controls">
+                    <div class="section-tabs">
+                        <button class="section-tab active" data-section="device_type">
+                            Device Types
+                            <span class="count">0</span>
+                        </button>
+                        <button class="section-tab" data-section="brand">
+                            Brands
+                            <span class="count">0</span>
+                        </button>
+                        <button class="section-tab" data-section="all">
+                            All Files
+                            <span class="count">0</span>
+                        </button>
+                    </div>
+                    <div class="view-toggle">
+                        <button class="active" data-view="grid">
+                            <svg width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M1 1h6v6H1zM9 1h6v6H9zM1 9h6v6H1zM9 9h6v6H9z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                        <button data-view="list">
+                            <svg width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M1 1h14v2H1zM1 6h14v2H1zM1 11h14v2H1z" fill="currentColor"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="search-section">
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="Search files..." class="search-input">
+                        <select id="activeGroup" class="group-select">
+                            <!-- Dynamically populated based on active section -->
+                        </select>
+                    </div>
+                    <div id="categoryChips" class="category-chips">
+                        <!-- Will be populated dynamically -->
+                    </div>
                 </div>
             </div>
+            
+            <div id="databaseFiles" class="ir-files"></div>
             <div id="databaseLoadingState" class="loading-state" style="display: none;">
                 <div class="spinner"></div>
                 <h3>Loading Shared Files...</h3>
                 <p>Fetching IR files from the community database</p>
             </div>
-            <div id="databaseFiles" class="ir-files"></div>
             <div id="emptyDatabaseState" class="empty-state" style="display: none;">
                 <h3>No Shared Files Found</h3>
                 <p>Be the first to share your IR files with the community!</p>
