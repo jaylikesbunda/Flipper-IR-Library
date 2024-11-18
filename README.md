@@ -2,7 +2,7 @@
 
 ⚠️ **ALPHA VERSION**: This project is in early development. Expect bugs and frequent changes.
 
-A web-based IR signal library and browser for the Flipper Zero. Browse your local IR files and share them with the community.
+A web-based IR signal library and browser for the Flipper Zero. Making use of embedded .ir metadata.
 
 ## Current Status
 This is an alpha release with basic functionality
