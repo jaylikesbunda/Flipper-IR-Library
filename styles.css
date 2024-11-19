@@ -300,12 +300,11 @@ body {
     transform: translateY(0);
 }
 
-.ir-files {
+/* Grid view styles */
+.ir-files.grid-view {
     display: grid;
+    gap: 16px;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 24px;
-    padding: 24px;
-    position: relative;
 }
 
 .ir-files::before {
@@ -911,6 +910,13 @@ body {
     padding: 8px 16px;
     border-radius: 6px;
     font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.search-input:focus {
+    border-color: var(--purple-accent);
+    box-shadow: 0 0 0 2px var(--purple-light);
+    outline: none;
 }
 
 .group-select {
@@ -995,20 +1001,93 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    background: var(--border-color);
+    background: var(--card-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    width: 100%;
 }
 
 .ir-files.list-view .ir-list-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 24px;
+    gap: 24px;
+    border-bottom: 1px solid var(--border-color);
     background: var(--card-bg);
+    width: 100%;
+    box-sizing: border-box;
 }
 
-.ir-files.grid-view {
-    display: grid;
-    gap: 16px;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+.ir-files.list-view .filename {
+    min-width: 200px;
+    max-width: 300px;
+    font-weight: 500;
+    color: var(--purple-accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Update the button styles */
+.ir-files.list-view .metadata-pills {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.ir-files.list-view .file-size {
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+.ir-files.list-view .item-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 24px;
+}
+
+.ir-files.list-view .item-actions button {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ir-files.list-view .item-actions .send-to-flipper-btn {
+    background: var(--purple-accent);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+}
+
+.ir-files.list-view .ir-list-item:hover {
+    background: var(--purple-light);
+}
+
+.ir-files.list-view .item-actions button:hover {
+    background: var(--purple-light);
+    color: var(--purple-accent);
+    border-color: var(--purple-accent);
+    transform: translateY(-1px);
+}
+
+.ir-files.list-view .item-actions .send-to-flipper-btn:hover {
+    background: var(--purple-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(103, 58, 183, 0.2);
+}
+
+/* Common button styles */
 .send-to-flipper-btn {
     background: var(--purple-accent);
     color: white;
@@ -1111,4 +1190,83 @@ body {
     padding: 2px 6px;
     border-radius: 10px;
     font-size: 11px;
+}
+
+.results-counter {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pagination-btn {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-btn:not(:disabled):hover {
+    background: var(--purple-light);
+    color: var(--purple-accent);
+    border-color: var(--purple-accent);
+}
+
+.pagination-btn.active {
+    background: var(--purple-accent);
+    color: white;
+    border-color: var(--purple-accent);
+}
+
+.pagination-ellipsis {
+    color: var(--text-secondary);
+    padding: 0 4px;
+}
+
+.pagination-wrapper {
+    width: 100%;
+    margin-top: 24px;
+}
+
+.pagination-controls {
+    display: flex !important; /* Force display for testing */
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
 }

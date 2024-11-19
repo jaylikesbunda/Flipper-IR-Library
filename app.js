@@ -66,6 +66,11 @@ class FlipperIRBrowser {
         if (this.activeGroupSelect) {
             this.activeGroupSelect.addEventListener('change', () => this.filterFiles());
         }
+
+        // Pagination settings
+        this.itemsPerPage = 12;
+        this.currentPage = 1;
+        this.filteredFiles = []; // Store filtered results
     }
 
     initializeUIElements() {
@@ -153,55 +158,58 @@ class FlipperIRBrowser {
     }
 
     async connectFlipper() {
-        try {
-            console.log('Button clicked');
-            console.log('Current connection state:', this.connected, this.flipper.isConnected); 
+        const ConnectionState = {
+            DISCONNECTING: 'disconnecting',
+            CONNECTING: 'connecting',
+            IDLE: 'idle'
+        };
 
+        let currentState = ConnectionState.IDLE;
+
+        try {
             if (this.connected) {
-                console.log('Entering disconnect flow');
-                this.setLoading(true);
+                currentState = ConnectionState.DISCONNECTING;
+                this.setLoading(true, 'Disconnecting...');
                 
-                try {
-                    if (!this.flipper) {
-                        console.error('No flipper instance!');
-                        throw new Error('Flipper instance not initialized');
-                    }
-                    
-                    await this.flipper.disconnect();
-                    this.connected = false;
-                    this.connectBtn.textContent = 'Connect Flipper';
-                    this.connectBtn.classList.remove('connected');
-                    this.irFilesEl.innerHTML = '';
-                    this.showAlert('Disconnected from Flipper', 'success');
-                } catch (err) {
-                    console.error('Disconnect error:', err);
-                    this.showAlert('Failed to disconnect: ' + err.message);
-                } finally {
-                    this.setLoading(false);
-                }
+                if (!this.flipper) throw new Error('Flipper instance not initialized');
+                
+                await this.flipper.disconnect();
+                this.updateConnectionState(false);
+                this.showAlert('Disconnected from Flipper', 'success');
                 return;
             }
 
-            this.setLoading(true);
+            currentState = ConnectionState.CONNECTING;
+            this.setLoading(true, 'Connecting to Flipper...');
 
-            if (!this.flipper) {
-                console.error('Flipper Serial instance not initialized');
-                throw new Error('Internal error: Flipper Serial not initialized');
-            }
+            if (!this.flipper) throw new Error('Internal error: Flipper Serial not initialized');
 
             await this.flipper.connect();
-            
-            this.connected = true;
-            this.flipper.isConnected = true;
-            this.connectBtn.textContent = 'Disconnect';
-            this.connectBtn.classList.add('connected');
+            this.updateConnectionState(true);
             this.showAlert('Successfully connected to Flipper!', 'success');
             await this.loadIRFiles();
+
         } catch (err) {
-            console.error('Connection error:', err);
-            this.showAlert(`Failed to connect to Flipper: ${err.message}`);
+            console.error(`${currentState} error:`, err);
+            this.showAlert(`Failed to ${currentState}: ${err.message}`);
+            this.updateConnectionState(false);
+
         } finally {
             this.setLoading(false);
+        }
+    }
+
+    updateConnectionState(isConnected) {
+        this.connected = isConnected;
+        if (this.flipper) this.flipper.isConnected = isConnected;
+        
+        if (this.connectBtn) {
+            this.connectBtn.textContent = isConnected ? 'Disconnect' : 'Connect Flipper';
+            this.connectBtn.classList.toggle('connected', isConnected);
+        }
+
+        if (!isConnected) {
+            this.irFilesEl.innerHTML = '';
         }
     }
 
@@ -293,24 +301,38 @@ class FlipperIRBrowser {
     }
 
     parseIRMetadata(content) {
-        const required = ['brand', 'device_type', 'model'];
-        const metadata = {};
-        const lines = content.split('\n');
-        
-        for (let i = 0; i < lines.length && required.length > 0; i++) {
-            const line = lines[i].trim();
-            if (!line.startsWith('#')) continue;
-            
-            const [key, ...valueParts] = line.substring(2).split(':');
-            const cleanKey = key.toLowerCase().replace(/ /g, '_');
-            
-            if (required.includes(cleanKey)) {
-                metadata[cleanKey] = valueParts.join(':').trim();
-                required.splice(required.indexOf(cleanKey), 1);
+        if (!content) return null;
+
+        const metadata = {
+            brand: null,
+            device_type: null,
+            model: null,
+            protocol: null
+        };
+
+        try {
+            const lines = content.split('\n');
+            for (const line of lines) {
+                if (!line.startsWith('#')) continue;
+
+                const [key, ...valueParts] = line.substring(2).split(':');
+                const cleanKey = key.toLowerCase().trim().replace(/ /g, '_');
+                
+                if (cleanKey in metadata) {
+                    metadata[cleanKey] = valueParts.join(':').trim();
+                }
             }
+
+            // Check if required fields are present
+            const hasRequiredFields = ['brand', 'device_type', 'model']
+                .every(field => metadata[field]);
+
+            return hasRequiredFields ? metadata : null;
+
+        } catch (err) {
+            console.error('Metadata parsing error:', err);
+            return null;
         }
-        
-        return required.length === 0 ? metadata : null;
     }
 
     addIRFileCard(file, metadata, content) {
@@ -450,28 +472,24 @@ class FlipperIRBrowser {
             return;
         }
 
-        // Handle different section types
+        // Reset pagination state
+        this.currentPage = 1;
+        this.filteredFiles = [];
+
+        // Collect all files to be displayed
         if (this.currentSection === 'all') {
-            // Display all files directly
-            Object.values(files).forEach(file => {
-                const card = this.addDatabaseFileCard(file, this.currentView);
-                if (card) {
-                    this.databaseFilesEl.appendChild(card);
-                }
-            });
+            this.filteredFiles = Object.values(files);
         } else {
-            // Display grouped files
             Object.values(files).forEach(groupFiles => {
                 if (!groupFiles || typeof groupFiles !== 'object') return;
-                
-                Object.values(groupFiles).forEach(file => {
-                    const card = this.addDatabaseFileCard(file, this.currentView);
-                    if (card) {
-                        this.databaseFilesEl.appendChild(card);
-                    }
-                });
+                this.filteredFiles.push(...Object.values(groupFiles));
             });
         }
+
+        // Display first page and setup pagination
+        this.displayCurrentPage();
+        this.updatePagination();
+        this.updateSearchResultsCount(this.filteredFiles.length);
     }
 
     // Improved shared files loading
@@ -784,14 +802,13 @@ class FlipperIRBrowser {
             element.className = 'ir-list-item';
             
             element.innerHTML = `
-                <div class="item-info">
-                    <span class="filename">${file.name || 'Unnamed File'}</span>
-                    <div class="metadata-pills">
-                        <span class="pill">${safeMetadata.brand}</span>
-                        <span class="pill">${safeMetadata.device_type}</span>
-                        <span class="pill">${safeMetadata.model}</span>
-                    </div>
+                <span class="filename" title="${file.name}">${file.name}</span>
+                <div class="metadata-pills">
+                    <span class="pill" title="Brand">${safeMetadata.brand}</span>
+                    <span class="pill" title="Device Type">${safeMetadata.device_type}</span>
+                    <span class="pill" title="Model">${safeMetadata.model}</span>
                 </div>
+                <span class="file-size">${this.formatFileSize(file.size || 0)}</span>
                 <div class="item-actions">
                     <button class="download-btn" title="Download to computer">
                         <svg width="16" height="16" viewBox="0 0 16 16">
@@ -800,9 +817,12 @@ class FlipperIRBrowser {
                         </svg>
                     </button>
                     <button class="send-to-flipper-btn" title="Send to Flipper">
-                        <svg width="16" height="16" viewBox="0 0 16 16">
-                            <path d="M8 1L5 4h2v8h2V4h2L8 1z" fill="currentColor"/>
-                        </svg>
+                        <div class="button-content">
+                            <svg width="16" height="16" viewBox="0 0 16 16">
+                                <path d="M8 1L5 4h2v8h2V4h2L8 1z" fill="currentColor"/>
+                            </svg>
+                            Send
+                        </div>
                     </button>
                 </div>
             `;
@@ -930,43 +950,176 @@ class FlipperIRBrowser {
     filterFiles() {
         if (!this.groupedFiles || !this.databaseFilesEl) return;
 
-        const searchTerm = this.searchInput?.value.toLowerCase() || '';
-        const selectedGroup = this.activeGroupSelect?.value || '';
-        const activeChips = Array.from(this.categoryChipsEl?.querySelectorAll('.category-chip.active') || [])
-            .map(chip => chip.dataset.category);
+        const filters = {
+            search: this.searchInput?.value.toLowerCase().trim() || '',
+            group: this.activeGroupSelect?.value || '',
+            categories: new Set(
+                Array.from(this.categoryChipsEl?.querySelectorAll('.category-chip.active') || [])
+                    .map(chip => chip.dataset.category)
+            )
+        };
+
+        const searchTerms = filters.search.split(/\s+/).filter(term => term.length > 0);
+
+        const matchesFilters = (file) => {
+            if (!file.metadata) return false;
+
+            // Search filter - now supports multiple terms
+            const searchableFields = [
+                file.name,
+                file.metadata.brand,
+                file.metadata.model,
+                file.metadata.device_type,
+                file.metadata.protocol // Added protocol to searchable fields
+            ].map(field => (field || '').toLowerCase());
+
+            const searchMatch = searchTerms.length === 0 || searchTerms.every(term => 
+                searchableFields.some(field => field.includes(term))
+            );
+
+            // Group filter
+            const groupMatch = !filters.group || file.metadata[this.currentSection] === filters.group;
+
+            // Category filter
+            const categoryMatch = filters.categories.size === 0 || 
+                filters.categories.has(file.metadata[this.currentSection]);
+
+            return searchMatch && groupMatch && categoryMatch;
+        };
+
+        // Debounce the actual filtering and UI update
+        clearTimeout(this._filterTimeout);
+        this._filterTimeout = setTimeout(() => {
+            // Get all matching files first
+            this.filteredFiles = [];
+            const files = this.groupedFiles[this.currentSection];
+
+            Object.values(files || {}).forEach(groupFiles => {
+                Object.values(groupFiles).forEach(file => {
+                    if (matchesFilters(file)) {
+                        this.filteredFiles.push(file);
+                    }
+                });
+            });
+
+            // Reset to first page when filter changes
+            this.currentPage = 1;
+            this.displayCurrentPage();
+            
+            // Update pagination controls
+            this.updatePagination();
+            
+            // Update results count
+            this.updateSearchResultsCount(this.filteredFiles.length);
+        }, 300);
+    }
+
+    // Add new method to display current page
+    displayCurrentPage() {
+        if (!this.databaseFilesEl) return;
 
         // Clear current display
         this.databaseFilesEl.innerHTML = '';
 
-        const files = this.groupedFiles[this.currentSection];
-        if (!files) return;
+        // Calculate page bounds
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+        const endIndex = startIndex + this.itemsPerPage;
+        
+        // Display only current page items
+        this.filteredFiles.slice(startIndex, endIndex).forEach(file => {
+            const card = this.addDatabaseFileCard(file, this.currentView);
+            if (card) this.databaseFilesEl.appendChild(card);
+        });
+    }
 
-        // Filter and display files
-        Object.entries(files).forEach(([group, groupFiles]) => {
-            // Skip if a group is selected and doesn't match
-            if (selectedGroup && group !== selectedGroup) return;
+    // Add new method to update pagination controls
+    updatePagination() {
+        const paginationWrapper = document.querySelector('.pagination-wrapper');
+        if (!paginationWrapper) {
+            console.error('Pagination wrapper not found');
+            return;
+        }
 
-            Object.values(groupFiles).forEach(file => {
-                if (!file.metadata) return;
+        let paginationContainer = paginationWrapper.querySelector('.pagination-controls');
+        if (!paginationContainer) {
+            paginationContainer = document.createElement('div');
+            paginationContainer.className = 'pagination-controls';
+            paginationWrapper.appendChild(paginationContainer);
+        }
 
-                // Check if file matches all active filters
-                const matchesSearch = !searchTerm || 
-                    file.name.toLowerCase().includes(searchTerm) ||
-                    file.metadata.brand.toLowerCase().includes(searchTerm) ||
-                    file.metadata.model.toLowerCase().includes(searchTerm) ||
-                    file.metadata.device_type.toLowerCase().includes(searchTerm);
+        const totalPages = Math.ceil(this.filteredFiles.length / this.itemsPerPage);
+        
+        // Always show for testing
+        paginationContainer.style.display = 'flex';
+        
+        // Generate pagination HTML
+        let paginationHTML = `
+            <button class="pagination-btn" data-page="prev" ${this.currentPage === 1 ? 'disabled' : ''}>
+                ←
+            </button>
+            <div class="page-numbers">
+        `;
 
-                const matchesCategories = activeChips.length === 0 || 
-                    activeChips.includes(file.metadata[this.currentSection]);
+        // Add page numbers with ellipsis for large ranges
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || 
+                (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+                paginationHTML += `
+                    <button class="pagination-btn ${i === this.currentPage ? 'active' : ''}" 
+                            data-page="${i}">
+                        ${i}
+                    </button>
+                `;
+            } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
+                paginationHTML += `<span class="pagination-ellipsis">...</span>`;
+            }
+        }
 
-                if (matchesSearch && matchesCategories) {
-                    const card = this.addDatabaseFileCard(file, this.currentView);
-                    if (card) {
-                        this.databaseFilesEl.appendChild(card);
-                    }
+        paginationHTML += `
+            </div>
+            <button class="pagination-btn" data-page="next" 
+                    ${this.currentPage === totalPages ? 'disabled' : ''}>
+                →
+            </button>
+        `;
+
+        paginationContainer.innerHTML = paginationHTML;
+
+        // Add event listeners to the pagination buttons
+        paginationContainer.querySelectorAll('.pagination-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) return;
+                
+                const page = btn.dataset.page;
+                if (page === 'prev' && this.currentPage > 1) {
+                    this.currentPage--;
+                } else if (page === 'next' && this.currentPage < totalPages) {
+                    this.currentPage++;
+                } else if (page !== 'prev' && page !== 'next') {
+                    this.currentPage = parseInt(page);
                 }
+                
+                this.displayCurrentPage();
+                this.updatePagination();
+                
+                // Scroll to top of results
+                this.databaseFilesEl.scrollIntoView({ behavior: 'smooth' });
             });
         });
+    }
+
+    // Add this new method to update the search results count
+    updateSearchResultsCount(count) {
+        const searchSection = document.querySelector('.search-section');
+        let resultsCounter = searchSection.querySelector('.results-counter');
+        
+        if (!resultsCounter) {
+            resultsCounter = document.createElement('div');
+            resultsCounter.className = 'results-counter';
+            searchSection.appendChild(resultsCounter);
+        }
+
+        resultsCounter.textContent = `${count} result${count !== 1 ? 's' : ''} found`;
     }
 }
 // Initialize the application
